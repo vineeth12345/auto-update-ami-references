@@ -13,7 +13,6 @@ jobs:
     env:
       PIPELINE_NAME: "amitest" # <-- Update this to match your actual pipeline name
       CLUSTER_YML_PATH: "Definitions/clusters.yml" # <-- Update this to match your actual file path
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
       - name: Checkout repository
