@@ -45,14 +45,18 @@ def get_latest_available_ami(pipeline_name, region='us-east-1'):
 
 
 def update_yaml_file(path: str, ami_id: str):
-    class IgnoreUnknownTagsLoader(yaml.SafeLoader):
-        def ignore_unknown(self, node):
-            return self.construct_scalar(node)
-    IgnoreUnknownTagsLoader.add_constructor(
-        None, IgnoreUnknownTagsLoader.ignore_unknown)
+    class CustomLoader(yaml.SafeLoader):
+        pass
+
+    def unknown_constructor(loader, tag_suffix, node):
+        if isinstance(node, yaml.MappingNode):
+            return loader.construct_mapping(node)
+        return loader.construct_scalar(node)
+
+    CustomLoader.add_multi_constructor("!", unknown_constructor)
 
     with open(path, 'r') as f:
-        data = yaml.load(f, Loader=IgnoreUnknownTagsLoader)
+        data = yaml.load(f, Loader=CustomLoader)
 
     for key in ['PROD_AMI', 'DEV_AMI', 'OVERRIDE_AMI']:
         if key in data:
@@ -61,7 +65,7 @@ def update_yaml_file(path: str, ami_id: str):
     with open(path, 'w') as f:
         yaml.dump(data, f, default_flow_style=False)
 
-    print(f"Updated {path} with AMI: {ami_id}")
+    print(f"Updated keys with AMI: {ami_id}")
 
 
 def git_commit_and_push(file_path, ami_id):
@@ -69,7 +73,6 @@ def git_commit_and_push(file_path, ami_id):
                    'github-actions'], check=True)
     subprocess.run(['git', 'config', '--global', 'user.email',
                    'github-actions@github.com'], check=True)
-
     subprocess.run(['git', 'add', file_path], check=True)
     subprocess.run(
         ['git', 'commit', '-m', f'[NOJIRA]: Update AMI ID to {ami_id}'], check=True)
