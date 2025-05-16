@@ -45,8 +45,14 @@ def get_latest_available_ami(pipeline_name, region='us-east-1'):
 
 
 def update_yaml_file(path: str, ami_id: str):
+    class IgnoreUnknownTagsLoader(yaml.SafeLoader):
+        def ignore_unknown(self, node):
+            return self.construct_scalar(node)
+    IgnoreUnknownTagsLoader.add_constructor(
+        None, IgnoreUnknownTagsLoader.ignore_unknown)
+
     with open(path, 'r') as f:
-        data = yaml.safe_load(f)
+        data = yaml.load(f, Loader=IgnoreUnknownTagsLoader)
 
     for key in ['PROD_AMI', 'DEV_AMI', 'OVERRIDE_AMI']:
         if key in data:
