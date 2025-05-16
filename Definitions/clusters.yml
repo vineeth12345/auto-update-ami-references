@@ -1,0 +1,442 @@
+--- !!Version:1
+PROD_AMI: ami-06106a28ed7e03ce8
+DEV_AMI: ami-06106a28ed7e03ce8
+Clusters:
+  SomeTestCluster:
+    Team: Black Ops
+    Environments:
+      DEV:
+        InstanceType: t4g.small
+        DataVolumeGiB: 25
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 80%
+        # NOT INTENDED TO BE USED, except by BOPS members when testing a new AMI prior to
+        # setting the AMI globally at the top of the file.
+        OVERRIDE_AMI: ami-06106a28ed7e03ce8
+      PROD:
+        InstanceType: t4g.large
+        DataVolumeGiB: 50
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 40%
+  Rapid7:
+    Team: Black Ops
+    Environments:
+      DEV:
+        InstanceType: t4g.small
+        DataVolumeGiB: 25
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 80%
+  VK:
+    Team: Ravagers
+    Environments:
+      DEV:
+        InstanceType: t4g.small
+        DataVolumeGiB: 25
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 80%
+      PROD:
+        InstanceType: t4g.large
+        DataVolumeGiB: 100
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 40%
+  Telegram:
+    Team: Ravagers
+    Environments:
+      DEV:
+        InstanceType: t4g.small
+        DataVolumeGiB: 25
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 80%
+  Pastebin:
+    Team: Ravagers
+    Environments:
+      DEV:
+        InstanceType: t4g.small
+        DataVolumeGiB: 25
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 80%
+      PROD:
+        InstanceType: t4g.large
+        DataVolumeGiB: 100
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 40%
+  SearchTracking:
+    Team: Ravagers
+    Environments:
+      DEV:
+        InstanceType: t4g.small
+        DataVolumeGiB: 25
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 80%
+      PROD:
+        InstanceType: t4g.large
+        DataVolumeGiB: 100
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 40%
+  SearchResultValidation:
+    Team: Ravagers
+    Environments:
+      DEV:
+        InstanceType: t4g.small
+        DataVolumeGiB: 25
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 80%
+      PROD:
+        InstanceType: t4g.large
+        DataVolumeGiB: 100
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 40%
+  StreamToKinesis:
+    Team: Ravagers
+    Environments:
+      DEV:
+        InstanceType: t4g.small
+        DataVolumeGiB: 25
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 80%
+      PROD:
+        InstanceType: t4g.large
+        DataVolumeGiB: 100
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 40%
+  CrawlInitiation:
+    Team: Ravagers
+    Environments:
+      DEV:
+        InstanceType: t4g.small
+        DataVolumeGiB: 25
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 80%
+      PROD:
+        InstanceType: t4g.large
+        DataVolumeGiB: 100
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 45%
+#  DataMapping:
+#    Team: Ravagers
+#    Environments:
+#      DEV:
+#        InstanceType: t4g.small
+#        DataVolumeGiB: 25
+#        NodeCount: 3
+#        DiskFreeLimit: 10GiB
+#        MemoryHighWatermark: 80%
+#      PROD:
+#        InstanceType: t4g.large
+#        DataVolumeGiB: 100
+#        NodeCount: 3
+#        DiskFreeLimit: 10GiB
+#        MemoryHighWatermark: 40%
+  DataSorcerer:
+    Team: Ravagers
+    Environments:
+      DEV:
+        InstanceType: t4g.small
+        DataVolumeGiB: 25
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 80%
+      PROD:
+        InstanceType: t4g.large
+        DataVolumeGiB: 100
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 40%
+  DocumentStorage:
+    Team: Men in Black
+    Environments:
+      DEV:
+        InstanceType: t4g.small
+        DataVolumeGiB: 25
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 80%
+      PROD:
+        InstanceType: m6g.xlarge
+        DataVolumeGiB: 200
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 40%
+  ElasticPipelineRouter:
+    Team: Men in Black
+    Environments:
+      DEV:
+        InstanceType: t4g.small
+        DataVolumeGiB: 25
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 80%
+      PROD:
+        InstanceType: t4g.large
+        DataVolumeGiB: 100
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 40%
+  ElasticWriter:
+    Team: Men in Black
+    Environments:
+      DEV:
+        InstanceType: t4g.small
+        DataVolumeGiB: 25
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 80%
+      PROD:
+        InstanceType: t4g.large
+        DataVolumeGiB: 100
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 40%
+  Tripwire:
+    Team: Men in Black
+    Environments:
+      DEV:
+        InstanceType: t4g.small
+        DataVolumeGiB: 25
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 80%
+      PROD:
+        InstanceType: t4g.large
+        DataVolumeGiB: 100
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 40%
+  Repo:
+    Team: Men in Black
+    Environments:
+      DEV:
+        InstanceType: t4g.small
+        DataVolumeGiB: 25
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 80%
+      PROD:
+        InstanceType: t4g.large
+        DataVolumeGiB: 100
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 40%
+  PushNotification:
+    Team: Voyager
+    Environments:
+      DEV:
+        InstanceType: t4g.small
+        DataVolumeGiB: 25
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 80%
+      PROD:
+        InstanceType: t4g.large
+        DataVolumeGiB: 100
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 40%
+  ThreatIntentDetection:
+    Team: Polite Analyst
+    Environments:
+      DEV:
+        InstanceType: t4g.small
+        DataVolumeGiB: 25
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 80%
+      PROD:
+        InstanceType: t4g.large
+        DataVolumeGiB: 100
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 40%
+  ViolenceDetection:
+    Team: Polite Analyst
+    Environments:
+      DEV:
+        InstanceType: t4g.small
+        DataVolumeGiB: 25
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 80%
+      PROD:
+        InstanceType: t4g.large
+        DataVolumeGiB: 100
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 40%
+  TopicClassification:
+    Team: Polite Analyst
+    Environments:
+      DEV:
+        InstanceType: t4g.small
+        DataVolumeGiB: 25
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 80%
+  BabelBox:
+    Team: Babel Box
+    Environments:
+      DEV:
+        InstanceType: t4g.small
+        DataVolumeGiB: 25
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 40%
+      PROD:
+        InstanceType: t4g.large
+        DataVolumeGiB: 100
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 40%
+  Sandbox:
+    Team: Cloud Nine
+    Environments:
+      DEV:
+        InstanceType: t4g.small
+        DataVolumeGiB: 25
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 80%
+  LocateX:
+    Team: Phoenix
+    Environments:
+      DEV:
+        InstanceType: t4g.small
+        DataVolumeGiB: 25
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 80%
+      PROD:
+        InstanceType: t4g.large
+        DataVolumeGiB: 100
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 40%
+  LocateXSignalIdAssignment:
+    Team: Phoenix
+    Environments:
+      DEV:
+        InstanceType: t4g.small
+        DataVolumeGiB: 25
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 80%
+      PROD:
+        InstanceType: t4g.large
+        DataVolumeGiB: 100
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 40%
+  LocateXSignalInserter:
+    Team: Phoenix
+    Environments:
+      DEV:
+        InstanceType: t4g.small
+        DataVolumeGiB: 25
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 80%
+      PROD:
+        InstanceType: t4g.large
+        DataVolumeGiB: 100
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 40%
+  Silicon:
+    Team: Phoenix
+    Environments:
+      DEV:
+        InstanceType: t4g.small
+        DataVolumeGiB: 25
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 80%
+      PROD:
+        InstanceType: t4g.large
+        DataVolumeGiB: 100
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 40%
+  Indexing:
+    Team: Phoenix
+    Environments:
+      DEV:
+        InstanceType: t4g.small
+        DataVolumeGiB: 25
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 80%
+      PROD:
+        InstanceType: t4g.large
+        DataVolumeGiB: 100
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 40%
+  LLMIntegration:
+    Team: Orion
+    Environments:
+      DEV:
+        InstanceType: t4g.small
+        DataVolumeGiB: 25
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 80%
+      PROD:
+        InstanceType: t4g.large
+        DataVolumeGiB: 100
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 40%
+  IdentityRiskEnrichment:
+    Team: Slytherin
+    Environments:
+      DEV:
+        InstanceType: t4g.small
+        DataVolumeGiB: 25
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 80%
+  PublicRecordSearch:
+    Team: Heroes for Hire
+    Environments:
+      DEV:
+        InstanceType: t4g.small
+        DataVolumeGiB: 25
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 80%
+      PROD:
+        InstanceType: t4g.large
+        DataVolumeGiB: 100
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 40%
+  RetrieveDocumentsCoordinator:
+    Team: Heroes for Hire
+    Environments:
+      DEV:
+        InstanceType: t4g.small
+        DataVolumeGiB: 25
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 80%
+      PROD:
+        InstanceType: t4g.large
+        DataVolumeGiB: 100
+        NodeCount: 3
+        DiskFreeLimit: 10GiB
+        MemoryHighWatermark: 40%
