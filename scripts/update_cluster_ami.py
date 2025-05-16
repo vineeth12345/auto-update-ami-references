@@ -1,53 +1,73 @@
+import boto3
+import yaml
+from pathlib import Path
 import os
 import subprocess
-import sys
-import ruamel.yaml
-from ruamel.yaml.scalarstring import DoubleQuotedScalarString
+import urllib.parse
+from ruamel.yaml import YAML
 
-CLUSTER_YML_PATH = os.getenv("CLUSTER_YML_PATH", "Definitions/clusters.yml")
-GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
-GITHUB_REPOSITORY = os.getenv("GITHUB_REPOSITORY")
-ami_id = os.getenv("AMI_ID")
-
-yaml = ruamel.yaml.YAML()
-yaml.preserve_quotes = True
-
-
-def get_current_branch():
-    try:
-        result = subprocess.run(
-            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-            check=True,
-            stdout=subprocess.PIPE,
-            text=True
-        )
-        return result.stdout.strip()
-    except subprocess.CalledProcessError as e:
-        print("❌ Failed to determine current git branch:", e)
-        sys.exit(1)
+PIPELINE_NAME = os.environ['PIPELINE_NAME']
+CLUSTER_YML_PATH = os.environ['CLUSTER_YML_PATH']
+REGION = os.getenv('AWS_REGION', 'us-east-1')
+# e.g., "main", "feature/xyz"
+BRANCH_NAME = os.getenv('GITHUB_REF_NAME', 'main')
+GITHUB_TOKEN = os.getenv('GITHUB_TOKEN')
+GITHUB_REPOSITORY = os.getenv('GITHUB_REPOSITORY')  # e.g., "user/repo"
 
 
-def update_yaml_file_preserve_tags(file_path, new_ami_id):
-    with open(file_path, "r") as f:
-        data = yaml.load(f)
+def get_latest_available_ami(pipeline_name, region='us-east-1'):
+    client = boto3.client('imagebuilder', region_name=region)
+    account_id = boto3.client('sts').get_caller_identity()['Account']
+    pipeline_arn = f'arn:aws:imagebuilder:{region}:{account_id}:image-pipeline/{pipeline_name}'
 
-    updated = False
+    all_images = []
+    next_token = None
 
-    for cluster in data.get("clusters", []):
-        if "ami" in cluster:
-            cluster["ami"] = DoubleQuotedScalarString(new_ami_id)
-            updated = True
+    while True:
+        params = {'imagePipelineArn': pipeline_arn}
+        if next_token:
+            params['nextToken'] = next_token
 
-    if updated:
-        with open(file_path, "w") as f:
-            yaml.dump(data, f)
-        print(f"✅ Updated {file_path} with AMI: {new_ami_id}")
-    else:
-        print("⚠️ No AMI field found to update.")
-        sys.exit(1)
+        response = client.list_image_pipeline_images(**params)
+        all_images.extend(response.get('imageSummaryList', []))
+        next_token = response.get('nextToken')
+
+        if not next_token:
+            break
+
+    sorted_images = sorted(
+        all_images, key=lambda x: x['dateCreated'], reverse=True)
+
+    for image in sorted_images:
+        image_arn = image['arn']
+        details = client.get_image(imageBuildVersionArn=image_arn)
+        state = details['image']['state']['status']
+
+        if state == 'AVAILABLE':
+            ami_info = details['image']['outputResources']['amis'][0]
+            return ami_info['image']
+
+    return None
 
 
-def git_commit_and_push(file_path, new_ami_id, branch_name):
+def update_yaml_file_preserve_tags(path: str, ami_id: str):
+    yaml_parser = YAML()
+    yaml_parser.preserve_quotes = True
+
+    with open(path, 'r') as f:
+        data = yaml_parser.load(f)
+
+    for key in ['PROD_AMI', 'DEV_AMI', 'OVERRIDE_AMI']:
+        if key in data:
+            data[key] = ami_id
+
+    with open(path, 'w') as f:
+        yaml_parser.dump(data, f)
+
+    print(f"✅ Updated {path} with AMI: {ami_id}")
+
+
+def git_commit_and_push(file_path, ami_id, branch_name):
     subprocess.run(['git', 'config', '--global', 'user.name',
                    'github-actions'], check=True)
     subprocess.run(['git', 'config', '--global', 'user.email',
@@ -55,27 +75,20 @@ def git_commit_and_push(file_path, new_ami_id, branch_name):
 
     subprocess.run(['git', 'checkout', branch_name], check=True)
     subprocess.run(['git', 'add', file_path], check=True)
+    subprocess.run(
+        ['git', 'commit', '-m', f'[NOJIRA]: Update AMI ID to {ami_id}'], check=True)
 
-    try:
-        subprocess.run(
-            ['git', 'commit', '-m', f'[NOJIRA]: Update AMI ID to {new_ami_id}'], check=True)
-    except subprocess.CalledProcessError:
-        print("ℹ️ No changes to commit.")
-        return
-
-    remote_url = f"https://x-access-token:{GITHUB_TOKEN}@github.com/{GITHUB_REPOSITORY}.git"
-    subprocess.run(['git', 'remote', 'set-url',
-                   'origin', remote_url], check=True)
-
-    subprocess.run(['git', 'push', 'origin', branch_name], check=True)
-    print(f"🚀 Changes pushed to {branch_name}")
+    # Authenticated push using token
+    encoded_token = urllib.parse.quote(GITHUB_TOKEN)
+    repo_url = f"https://x-access-token:{encoded_token}@github.com/{GITHUB_REPOSITORY}.git"
+    subprocess.run(['git', 'push', repo_url, branch_name], check=True)
 
 
 if __name__ == "__main__":
-    if not all([GITHUB_TOKEN, GITHUB_REPOSITORY, ami_id]):
-        print("❌ Required environment variables not set.")
-        sys.exit(1)
+    ami_id = get_latest_available_ami(PIPELINE_NAME, REGION)
+    if not ami_id:
+        print("No AVAILABLE AMI found.")
+        exit(1)
 
-    branch = get_current_branch()
     update_yaml_file_preserve_tags(CLUSTER_YML_PATH, ami_id)
-    git_commit_and_push(CLUSTER_YML_PATH, ami_id, branch)
+    git_commit_and_push(CLUSTER_YML_PATH, ami_id, BRANCH_NAME)
