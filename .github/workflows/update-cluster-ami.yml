@@ -9,7 +9,7 @@ jobs:
 
     env:
       PIPELINE_NAME: "amitest" # <-- Update this to match your actual pipeline name
-      CLUSTER_YML_PATH: "auto-update-ami-references/Definitions/clusters.yml" # <-- Update this to match your actual file path
+      CLUSTER_YML_PATH: "Definitions/clusters.yml" # <-- Update this to match your actual file path
 
     steps:
       - name: Checkout repository
@@ -32,4 +32,4 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_REGION: "us-east-1"
         run: |
-          python3 auto-update-ami-references/scripts/update_cluster_ami.py
+          python3 scripts/update_cluster_ami.py
