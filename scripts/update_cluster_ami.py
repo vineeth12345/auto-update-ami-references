@@ -1,10 +1,9 @@
 import boto3
-import yaml
+from ruamel.yaml import YAML
 from pathlib import Path
 import os
 import subprocess
 import urllib.parse
-from ruamel.yaml import YAML
 
 PIPELINE_NAME = os.environ['PIPELINE_NAME']
 CLUSTER_YML_PATH = os.environ['CLUSTER_YML_PATH']
@@ -76,7 +75,8 @@ def git_commit_and_push(file_path, ami_id, branch_name):
     subprocess.run(['git', 'add', file_path], check=True)
 
     # Check if there are any staged changes
-    diff_result = subprocess.run(['git', 'diff', '--cached', '--quiet'])
+    diff_result = subprocess.run(
+        ['git', 'diff', '--cached', '--quiet'], check=False)
     if diff_result.returncode == 0:
         print("🟡 No changes to commit. Skipping git commit and push.")
         return
