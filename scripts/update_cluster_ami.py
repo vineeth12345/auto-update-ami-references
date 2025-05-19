@@ -9,7 +9,6 @@ from ruamel.yaml import YAML
 PIPELINE_NAME = os.environ['PIPELINE_NAME']
 CLUSTER_YML_PATH = os.environ['CLUSTER_YML_PATH']
 REGION = os.getenv('AWS_REGION', 'us-east-1')
-# e.g., "main", "feature/xyz"
 BRANCH_NAME = os.getenv('GITHUB_REF_NAME', 'main')
 GITHUB_TOKEN = os.getenv('GITHUB_TOKEN')
 GITHUB_REPOSITORY = os.getenv('GITHUB_REPOSITORY')  # e.g., "user/repo"
@@ -75,10 +74,16 @@ def git_commit_and_push(file_path, ami_id, branch_name):
 
     subprocess.run(['git', 'checkout', branch_name], check=True)
     subprocess.run(['git', 'add', file_path], check=True)
+
+    # Check if there are any staged changes
+    diff_result = subprocess.run(['git', 'diff', '--cached', '--quiet'])
+    if diff_result.returncode == 0:
+        print("🟡 No changes to commit. Skipping git commit and push.")
+        return
+
     subprocess.run(
         ['git', 'commit', '-m', f'[NOJIRA]: Update AMI ID to {ami_id}'], check=True)
 
-    # Authenticated push using token
     encoded_token = urllib.parse.quote(GITHUB_TOKEN)
     repo_url = f"https://x-access-token:{encoded_token}@github.com/{GITHUB_REPOSITORY}.git"
     subprocess.run(['git', 'push', repo_url, branch_name], check=True)
