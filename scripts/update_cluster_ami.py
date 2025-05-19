@@ -55,14 +55,34 @@ def update_yaml_file_preserve_tags(path: str, ami_id: str):
     with open(path, 'r') as f:
         data = yaml_parser.load(f)
 
+    updated_keys = []
+
+    # Top-level keys
     for key in ['PROD_AMI', 'DEV_AMI', 'OVERRIDE_AMI']:
-        if key in data:
+        if key in data and data[key] != ami_id:
             data[key] = ami_id
+            updated_keys.append(key)
+
+    # Recursively update nested OVERRIDE_AMI keys
+    clusters = data.get('Clusters', {})
+    for cluster_name, cluster in clusters.items():
+        environments = cluster.get('Environments', {})
+        for env_name, env in environments.items():
+            if 'OVERRIDE_AMI' in env and env['OVERRIDE_AMI'] != ami_id:
+                env['OVERRIDE_AMI'] = ami_id
+                updated_keys.append(
+                    f'Clusters.{cluster_name}.Environments.{env_name}.OVERRIDE_AMI')
 
     with open(path, 'w') as f:
         yaml_parser.dump(data, f)
 
     print(f"✅ Updated {path} with AMI: {ami_id}")
+    if updated_keys:
+        print("📝 Keys updated:")
+        for key in updated_keys:
+            print(f"  - {key}")
+    else:
+        print("ℹ️ No keys needed to be updated.")
 
 
 def git_commit_and_push(file_path, ami_id, branch_name):
@@ -74,11 +94,10 @@ def git_commit_and_push(file_path, ami_id, branch_name):
     subprocess.run(['git', 'checkout', branch_name], check=True)
     subprocess.run(['git', 'add', file_path], check=True)
 
-    # Check if there are any staged changes
-    diff_result = subprocess.run(
-        ['git', 'diff', '--cached', '--quiet'], check=False)
+    # Check for changes before committing
+    diff_result = subprocess.run(['git', 'diff', '--cached', '--quiet'])
     if diff_result.returncode == 0:
-        print("🟡 No changes to commit. Skipping git commit and push.")
+        print("ℹ️ No changes to commit.")
         return
 
     subprocess.run(
@@ -92,7 +111,7 @@ def git_commit_and_push(file_path, ami_id, branch_name):
 if __name__ == "__main__":
     ami_id = get_latest_available_ami(PIPELINE_NAME, REGION)
     if not ami_id:
-        print("No AVAILABLE AMI found.")
+        print("❌ No AVAILABLE AMI found.")
         exit(1)
 
     update_yaml_file_preserve_tags(CLUSTER_YML_PATH, ami_id)
