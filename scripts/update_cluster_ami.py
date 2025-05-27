@@ -58,21 +58,10 @@ def update_yaml_file_preserve_tags(path: str, ami_id: str):
     updated_keys = []
 
     # Top-level keys
-    for key in ['PROD_AMI', 'DEV_AMI', 'OVERRIDE_AMI']:
+    for key in ['PROD_AMI', 'DEV_AMI']:
         if key in data and data[key] != ami_id:
             data[key] = ami_id
             updated_keys.append(key)
-
-    # Recursively update nested OVERRIDE_AMI keys
-    clusters = data.get('Clusters', {})
-    for cluster_name, cluster in clusters.items():
-        environments = cluster.get('Environments', {})
-        for env_name, env in environments.items():
-            if 'OVERRIDE_AMI' in env and env['OVERRIDE_AMI'] != ami_id:
-                env['OVERRIDE_AMI'] = ami_id
-                updated_keys.append(
-                    f'Clusters.{cluster_name}.Environments.{env_name}.OVERRIDE_AMI')
-
     with open(path, 'w') as f:
         yaml_parser.dump(data, f)
 
