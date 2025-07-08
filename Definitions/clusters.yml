@@ -1,6 +1,6 @@
 !!Version:1
-PROD_AMI: ami-0a174b9853736c3c8
-DEV_AMI: ami-0a174b9853736c3c8
+PROD_AMI: mi-0515e95e9517096bb
+DEV_AMI: mi-0515e95e9517096bb
 Clusters:
   SomeTestCluster:
     Team: Black Ops
@@ -128,21 +128,21 @@ Clusters:
         NodeCount: 3
         DiskFreeLimit: 10GiB
         MemoryHighWatermark: 45%
-#  DataMapping:
-#    Team: Ravagers
-#    Environments:
-#      DEV:
-#        InstanceType: t4g.small
-#        DataVolumeGiB: 25
-#        NodeCount: 3
-#        DiskFreeLimit: 10GiB
-#        MemoryHighWatermark: 80%
-#      PROD:
-#        InstanceType: t4g.large
-#        DataVolumeGiB: 100
-#        NodeCount: 3
-#        DiskFreeLimit: 10GiB
-#        MemoryHighWatermark: 40%
+  #  DataMapping:
+  #    Team: Ravagers
+  #    Environments:
+  #      DEV:
+  #        InstanceType: t4g.small
+  #        DataVolumeGiB: 25
+  #        NodeCount: 3
+  #        DiskFreeLimit: 10GiB
+  #        MemoryHighWatermark: 80%
+  #      PROD:
+  #        InstanceType: t4g.large
+  #        DataVolumeGiB: 100
+  #        NodeCount: 3
+  #        DiskFreeLimit: 10GiB
+  #        MemoryHighWatermark: 40%
   DataSorcerer:
     Team: Ravagers
     Environments:
