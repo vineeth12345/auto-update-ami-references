@@ -79,7 +79,8 @@ def git_create_branch_and_commit(file_path, ami_id, branch_name):
     subprocess.run(
         ['git', 'commit', '-m', f'[NOJIRA]: Update AMI ID to {ami_id}'], check=True)
     repo_url = f"https://x-access-token:{urllib.parse.quote(GITHUB_TOKEN)}@github.com/{GITHUB_REPOSITORY}.git"
-    subprocess.run(['git', 'push', repo_url, branch_name], check=True)
+    subprocess.run(['git', 'push', '--force-with-lease',
+                   repo_url, branch_name], check=True)
     return True
 
 
