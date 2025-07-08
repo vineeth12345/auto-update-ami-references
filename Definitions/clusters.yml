@@ -1,6 +1,6 @@
 !!Version:1
-PROD_AMI: ami-0292bb88519dddb89
-DEV_AMI: ami-0292bb88519dddb89
+PROD_AMI: ami-0a174b9853736c3c8
+DEV_AMI: ami-0a174b9853736c3c8
 Clusters:
   SomeTestCluster:
     Team: Black Ops
