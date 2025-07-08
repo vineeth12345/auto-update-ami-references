@@ -28,7 +28,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install boto3 pyyaml ruamel.yaml
+          pip install boto3 pyyaml ruamel.yaml requests
 
       # - name: Run AMI updater
       #   env:
