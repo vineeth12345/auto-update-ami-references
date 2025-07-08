@@ -4,6 +4,9 @@ from pathlib import Path
 import os
 import subprocess
 import urllib.parse
+import uuid
+import json
+import requests
 
 PIPELINE_NAME = os.environ['PIPELINE_NAME']
 CLUSTER_YML_PATH = os.environ['CLUSTER_YML_PATH']
@@ -57,33 +60,39 @@ def update_yaml_file_preserve_tags(path: str, ami_id: str):
 
     updated_keys = []
 
-    # Top-level keys
     for key in ['PROD_AMI', 'DEV_AMI']:
         if key in data and data[key] != ami_id:
             data[key] = ami_id
             updated_keys.append(key)
+
     with open(path, 'w') as f:
         yaml_parser.dump(data, f)
 
-    print(f"✅ Updated {path} with AMI: {ami_id}")
+    print(f"Updated {path} with AMI: {ami_id}")
     if updated_keys:
-        print("📝 Keys updated:")
+        print("Keys updated:")
         for key in updated_keys:
             print(f"  - {key}")
     else:
         print("ℹ️ No keys needed to be updated.")
 
+    return updated_keys
 
-def git_commit_and_push(file_path, ami_id, branch_name):
+
+def git_commit_and_push_and_pr(file_path, ami_id, base_branch):
     subprocess.run(['git', 'config', '--global', 'user.name',
                    'github-actions'], check=True)
     subprocess.run(['git', 'config', '--global', 'user.email',
                    'github-actions@github.com'], check=True)
 
-    subprocess.run(['git', 'checkout', branch_name], check=True)
+    # Generate a new branch name
+    branch_suffix = uuid.uuid4().hex[:6]
+    new_branch = f"update-ami-{branch_suffix}"
+
+    subprocess.run(['git', 'checkout', '-b', new_branch], check=True)
     subprocess.run(['git', 'add', file_path], check=True)
 
-    # Check for changes before committing
+    # Check for changes
     diff_result = subprocess.run(['git', 'diff', '--cached', '--quiet'])
     if diff_result.returncode == 0:
         print("ℹ️ No changes to commit.")
@@ -94,14 +103,37 @@ def git_commit_and_push(file_path, ami_id, branch_name):
 
     encoded_token = urllib.parse.quote(GITHUB_TOKEN)
     repo_url = f"https://x-access-token:{encoded_token}@github.com/{GITHUB_REPOSITORY}.git"
-    subprocess.run(['git', 'push', repo_url, branch_name], check=True)
+    subprocess.run(['git', 'push', repo_url, new_branch], check=True)
+
+    # Open a PR
+    headers = {
+        'Authorization': f'token {GITHUB_TOKEN}',
+        'Accept': 'application/vnd.github+json'
+    }
+    pr_data = {
+        'title': f'[NOJIRA]: Update AMI ID to {ami_id}',
+        'head': new_branch,
+        'base': base_branch,
+        'body': 'Automated PR to update the AMI ID in the cluster YAML file.'
+    }
+    pr_url = f'https://api.github.com/repos/{GITHUB_REPOSITORY}/pulls'
+    response = requests.post(pr_url, headers=headers, data=json.dumps(pr_data))
+
+    if response.status_code == 201:
+        print(f"Pull request created: {response.json()['html_url']}")
+    else:
+        print(
+            f"Failed to create pull request: {response.status_code} {response.text}")
 
 
 if __name__ == "__main__":
     ami_id = get_latest_available_ami(PIPELINE_NAME, REGION)
     if not ami_id:
-        print("❌ No AVAILABLE AMI found.")
+        print("No AVAILABLE AMI found.")
         exit(1)
 
-    update_yaml_file_preserve_tags(CLUSTER_YML_PATH, ami_id)
-    git_commit_and_push(CLUSTER_YML_PATH, ami_id, BRANCH_NAME)
+    updated_keys = update_yaml_file_preserve_tags(CLUSTER_YML_PATH, ami_id)
+    if updated_keys:
+        git_commit_and_push_and_pr(CLUSTER_YML_PATH, ami_id, BRANCH_NAME)
+    else:
+        print("ℹ️ Skipping git commit and PR creation since there were no changes.")
