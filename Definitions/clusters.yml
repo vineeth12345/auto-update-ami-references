@@ -1,6 +1,6 @@
 !!Version:1
-PROD_AMI: ami-0515e95e9517096bb
-DEV_AMI: ami-0515e95e9517096bb
+PROD_AMI: ami-0a174b9853736c3c8
+DEV_AMI: ami-0a174b9853736c3c8
 Clusters:
   SomeTestCluster:
     Team: Black Ops
@@ -13,7 +13,7 @@ Clusters:
         MemoryHighWatermark: 80%
         # NOT INTENDED TO BE USED, except by BOPS members when testing a new AMI prior to
         # setting the AMI globally at the top of the file.
-        OVERRIDE_AMI: ami-0515e95e9517096bb
+        OVERRIDE_AMI: ami-0a174b9853736c3c8
       PROD:
         InstanceType: t4g.large
         DataVolumeGiB: 50
