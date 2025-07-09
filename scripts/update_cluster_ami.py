@@ -69,37 +69,31 @@ def update_yaml_file_preserve_tags(path: str, ami_id: str):
     return bool(updated_keys)
 
 
-def branch_exists_locally(branch_name):
-    result = subprocess.run(
-        ['git', 'branch', '--list', branch_name], capture_output=True, text=True)
-    return bool(result.stdout.strip())
-
-
 def git_create_branch_and_commit(file_path, ami_id, branch_name):
     subprocess.run(['git', 'config', '--global', 'user.name',
                    'github-actions'], check=True)
     subprocess.run(['git', 'config', '--global', 'user.email',
                    'github-actions@github.com'], check=True)
+
     subprocess.run(['git', 'fetch'], check=True)
 
-    # If local branch exists, just checkout
-    if branch_exists_locally(branch_name):
-        print(f"📂 Local branch '{branch_name}' exists. Checking out...")
+    result = subprocess.run(
+        ['git', 'ls-remote', '--heads', 'origin', branch_name],
+        stdout=subprocess.PIPE,
+        text=True
+    )
+
+    if result.stdout:
+        print(f"🔁 Branch '{branch_name}' exists remotely. Rebasing...")
         subprocess.run(['git', 'checkout', branch_name], check=True)
+        subprocess.run(['git', 'pull', '--rebase',
+                       'origin', branch_name], check=True)
     else:
-        # Check if remote branch exists
-        result = subprocess.run(['git', 'ls-remote', '--heads', 'origin', branch_name],
-                                stdout=subprocess.PIPE, text=True)
-        if result.stdout:
-            print(
-                f"🔁 Remote branch '{branch_name}' exists. Checking it out...")
-            subprocess.run(['git', 'checkout', '-b', branch_name,
-                           f'origin/{branch_name}'], check=True)
-        else:
-            print(f"🌱 Creating new branch '{branch_name}'...")
-            subprocess.run(['git', 'checkout', '-b', branch_name], check=True)
+        print(f"🌱 Creating new branch '{branch_name}'...")
+        subprocess.run(['git', 'checkout', '-b', branch_name], check=True)
 
     subprocess.run(['git', 'add', file_path], check=True)
+
     diff_result = subprocess.run(['git', 'diff', '--cached', '--quiet'])
     if diff_result.returncode == 0:
         print("ℹ️ No changes to commit.")
@@ -107,10 +101,12 @@ def git_create_branch_and_commit(file_path, ami_id, branch_name):
 
     subprocess.run(
         ['git', 'commit', '-m', f'[NOJIRA]: Update AMI ID to {ami_id}'], check=True)
+
     encoded_token = urllib.parse.quote(GITHUB_TOKEN)
     repo_url = f"https://x-access-token:{encoded_token}@github.com/{GITHUB_REPOSITORY}.git"
     subprocess.run(['git', 'push', '--force-with-lease',
                    repo_url, branch_name], check=True)
+
     return True
 
 
@@ -126,15 +122,38 @@ def create_pull_request(branch_name):
         "base": "main",
         "body": f"This PR updates the AMI ID in `{CLUSTER_YML_PATH}` for the `{PIPELINE_NAME}` pipeline."
     }
+
     response = requests.post(url, headers=headers, json=data)
     if response.status_code == 201:
-        print(f"✅ Pull request created: {response.json()['html_url']}")
+        pr_url = response.json()["html_url"]
+        print(f"✅ Pull request created: {pr_url}")
     else:
         print(
             f"❌ Failed to create pull request: {response.status_code} {response.text}")
 
 
 if __name__ == "__main__":
+    subprocess.run(['git', 'config', '--global', 'user.name',
+                   'github-actions'], check=True)
+    subprocess.run(['git', 'config', '--global', 'user.email',
+                   'github-actions@github.com'], check=True)
+    subprocess.run(['git', 'fetch'], check=True)
+
+    result = subprocess.run(
+        ['git', 'ls-remote', '--heads', 'origin', BRANCH_NAME],
+        stdout=subprocess.PIPE,
+        text=True
+    )
+
+    if result.stdout:
+        print(f"🔁 Branch '{BRANCH_NAME}' exists remotely. Rebasing...")
+        subprocess.run(['git', 'checkout', BRANCH_NAME], check=True)
+        subprocess.run(['git', 'pull', '--rebase',
+                       'origin', BRANCH_NAME], check=True)
+    else:
+        print(f"🌱 Creating new branch '{BRANCH_NAME}'...")
+        subprocess.run(['git', 'checkout', '-b', BRANCH_NAME], check=True)
+
     ami_id = get_latest_available_ami(PIPELINE_NAME, REGION)
     if not ami_id:
         print("❌ No AVAILABLE AMI found.")
