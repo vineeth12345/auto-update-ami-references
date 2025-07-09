@@ -70,12 +70,11 @@ def update_yaml_file_preserve_tags(path: str, ami_id: str):
     return bool(updated_keys)
 
 
-def git_create_branch_and_commit(file_path, ami_id, branch_name):
+def setup_branch(branch_name):
     subprocess.run(['git', 'config', '--global', 'user.name',
                    'github-actions'], check=True)
     subprocess.run(['git', 'config', '--global', 'user.email',
                    'github-actions@github.com'], check=True)
-
     subprocess.run(['git', 'fetch'], check=True)
 
     result = subprocess.run(
@@ -93,6 +92,8 @@ def git_create_branch_and_commit(file_path, ami_id, branch_name):
         print(f"🌱 Creating new branch '{branch_name}'...")
         subprocess.run(['git', 'checkout', '-b', branch_name], check=True)
 
+
+def commit_and_push_changes(file_path, ami_id, branch_name):
     subprocess.run(['git', 'add', file_path], check=True)
 
     diff_result = subprocess.run(['git', 'diff', '--cached', '--quiet'])
@@ -105,7 +106,9 @@ def git_create_branch_and_commit(file_path, ami_id, branch_name):
 
     encoded_token = urllib.parse.quote(GITHUB_TOKEN)
     repo_url = f"https://x-access-token:{encoded_token}@github.com/{GITHUB_REPOSITORY}.git"
-    subprocess.run(['git', 'push', '--force-with-lease',
+
+    # Final aggressive push to prevent stale info issues
+    subprocess.run(['git', 'push', '--force',
                    repo_url, branch_name], check=True)
 
     return True
@@ -139,9 +142,12 @@ if __name__ == "__main__":
         print("❌ No AVAILABLE AMI found.")
         exit(1)
 
+    setup_branch(BRANCH_NAME)
+
     updated = update_yaml_file_preserve_tags(CLUSTER_YML_PATH, ami_id)
+
     if updated:
-        committed = git_create_branch_and_commit(
+        committed = commit_and_push_changes(
             CLUSTER_YML_PATH, ami_id, BRANCH_NAME)
         if committed:
             create_pull_request(BRANCH_NAME)
