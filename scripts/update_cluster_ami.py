@@ -104,27 +104,12 @@ def commit_and_push_changes(file_path, ami_id, branch_name):
     subprocess.run(
         ['git', 'commit', '-m', f'[NOJIRA]: Update AMI ID to {ami_id}'], check=True)
 
-    # Fetch again just before push
-    subprocess.run(['git', 'fetch', 'origin', branch_name], check=True)
-    subprocess.run(['git', 'pull', '--rebase',
-                   'origin', branch_name], check=True)
-
     encoded_token = urllib.parse.quote(GITHUB_TOKEN)
     repo_url = f"https://x-access-token:{encoded_token}@github.com/{GITHUB_REPOSITORY}.git"
 
-    try:
-        subprocess.run(
-            ['git', 'push', '--force-with-lease', repo_url, branch_name],
-            check=True
-        )
-    except subprocess.CalledProcessError:
-        print("⚠️ First push failed. Trying one more time after pulling again...")
-        subprocess.run(['git', 'pull', '--rebase',
-                       'origin', branch_name], check=True)
-        subprocess.run(
-            ['git', 'push', '--force-with-lease', repo_url, branch_name],
-            check=True
-        )
+    # Final aggressive push to prevent stale info issues
+    subprocess.run(['git', 'push', '--force',
+                   repo_url, branch_name], check=True)
 
     return True
 
