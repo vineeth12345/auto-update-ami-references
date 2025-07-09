@@ -104,6 +104,10 @@ def commit_and_push_changes(file_path, ami_id, branch_name):
     subprocess.run(
         ['git', 'commit', '-m', f'[NOJIRA]: Update AMI ID to {ami_id}'], check=True)
 
+    # ✅ Ensure latest remote changes are pulled before pushing
+    subprocess.run(['git', 'pull', '--rebase',
+                   'origin', branch_name], check=True)
+
     encoded_token = urllib.parse.quote(GITHUB_TOKEN)
     repo_url = f"https://x-access-token:{encoded_token}@github.com/{GITHUB_REPOSITORY}.git"
     subprocess.run(['git', 'push', '--force-with-lease',
