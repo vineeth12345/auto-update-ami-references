@@ -116,3 +116,4 @@ if __name__ == "__main__":
     if committed:
         create_pull_request(BRANCH_NAME, ami_id)
 # this script is designed to update the AMI ID in a specified YAML file, commit the changes to a new branch, and create a pull request on GitHub. It uses AWS SDK for Python (boto3) to interact with AWS Image Builder and GitHub API for version control operations. Make sure to set the required environment variables before running the script.
+# testable
