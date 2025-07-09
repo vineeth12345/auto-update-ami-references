@@ -82,21 +82,12 @@ def git_create_branch_and_commit(file_path, ami_id, branch_name):
                    'github-actions@github.com'], check=True)
     subprocess.run(['git', 'fetch'], check=True)
 
-    # Save file changes to temp commit or stash to allow checkout
-    if os.path.exists(file_path):
-        subprocess.run(['git', 'add', file_path], check=True)
-
-    # Check for uncommitted changes before branch checkout
-    diff_status = subprocess.run(['git', 'diff', '--cached', '--quiet'])
-    if diff_status.returncode != 0:
-        print("📌 Committing changes to allow branch switch...")
-        subprocess.run(
-            ['git', 'commit', '-m', f'[TEMP]: Save changes for AMI update'], check=True)
-
-    # Switch to or create the branch
+    # If local branch exists, just checkout
     if branch_exists_locally(branch_name):
+        print(f"📂 Local branch '{branch_name}' exists. Checking out...")
         subprocess.run(['git', 'checkout', branch_name], check=True)
     else:
+        # Check if remote branch exists
         result = subprocess.run(['git', 'ls-remote', '--heads', 'origin', branch_name],
                                 stdout=subprocess.PIPE, text=True)
         if result.stdout:
@@ -109,7 +100,6 @@ def git_create_branch_and_commit(file_path, ami_id, branch_name):
             subprocess.run(['git', 'checkout', '-b', branch_name], check=True)
 
     subprocess.run(['git', 'add', file_path], check=True)
-
     diff_result = subprocess.run(['git', 'diff', '--cached', '--quiet'])
     if diff_result.returncode == 0:
         print("ℹ️ No changes to commit.")
