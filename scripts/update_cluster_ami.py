@@ -50,7 +50,6 @@ def update_yaml_file_preserve_tags(path: str, ami_id: str):
         data = yaml_parser.load(f)
 
     updated_keys = []
-
     for key in ['PROD_AMI', 'DEV_AMI']:
         if key in data and data[key] != ami_id:
             data[key] = ami_id
@@ -134,6 +133,27 @@ def create_pull_request(branch_name):
 
 
 if __name__ == "__main__":
+    subprocess.run(['git', 'config', '--global', 'user.name',
+                   'github-actions'], check=True)
+    subprocess.run(['git', 'config', '--global', 'user.email',
+                   'github-actions@github.com'], check=True)
+    subprocess.run(['git', 'fetch'], check=True)
+
+    result = subprocess.run(
+        ['git', 'ls-remote', '--heads', 'origin', BRANCH_NAME],
+        stdout=subprocess.PIPE,
+        text=True
+    )
+
+    if result.stdout:
+        print(f"🔁 Branch '{BRANCH_NAME}' exists remotely. Rebasing...")
+        subprocess.run(['git', 'checkout', BRANCH_NAME], check=True)
+        subprocess.run(['git', 'pull', '--rebase',
+                       'origin', BRANCH_NAME], check=True)
+    else:
+        print(f"🌱 Creating new branch '{BRANCH_NAME}'...")
+        subprocess.run(['git', 'checkout', '-b', BRANCH_NAME], check=True)
+
     ami_id = get_latest_available_ami(PIPELINE_NAME, REGION)
     if not ami_id:
         print("❌ No AVAILABLE AMI found.")
