@@ -70,12 +70,11 @@ def update_yaml_file_preserve_tags(path: str, ami_id: str):
     return bool(updated_keys)
 
 
-def git_create_branch_and_commit(file_path, ami_id, branch_name):
+def setup_branch(branch_name):
     subprocess.run(['git', 'config', '--global', 'user.name',
                    'github-actions'], check=True)
     subprocess.run(['git', 'config', '--global', 'user.email',
                    'github-actions@github.com'], check=True)
-
     subprocess.run(['git', 'fetch'], check=True)
 
     result = subprocess.run(
@@ -93,9 +92,8 @@ def git_create_branch_and_commit(file_path, ami_id, branch_name):
         print(f"🌱 Creating new branch '{branch_name}'...")
         subprocess.run(['git', 'checkout', '-b', branch_name], check=True)
 
-    if not ami_id:
-        return True  # Skip committing if only setting up the branch
 
+def commit_and_push_changes(file_path, ami_id, branch_name):
     subprocess.run(['git', 'add', file_path], check=True)
 
     diff_result = subprocess.run(['git', 'diff', '--cached', '--quiet'])
@@ -142,15 +140,15 @@ if __name__ == "__main__":
         print("❌ No AVAILABLE AMI found.")
         exit(1)
 
-    # Step 1: Setup branch before modifying the file
-    git_create_branch_and_commit(CLUSTER_YML_PATH, None, BRANCH_NAME)
+    # Step 1: Setup Git branch and rebase before file modification
+    setup_branch(BRANCH_NAME)
 
-    # Step 2: Modify the file
+    # Step 2: Update the YAML
     updated = update_yaml_file_preserve_tags(CLUSTER_YML_PATH, ami_id)
 
-    # Step 3: Commit and push if updated
+    # Step 3: Commit and PR
     if updated:
-        committed = git_create_branch_and_commit(
+        committed = commit_and_push_changes(
             CLUSTER_YML_PATH, ami_id, BRANCH_NAME)
         if committed:
             create_pull_request(BRANCH_NAME)
