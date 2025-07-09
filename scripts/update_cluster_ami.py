@@ -93,6 +93,9 @@ def git_create_branch_and_commit(file_path, ami_id, branch_name):
         print(f"🌱 Creating new branch '{branch_name}'...")
         subprocess.run(['git', 'checkout', '-b', branch_name], check=True)
 
+    if not ami_id:
+        return True  # Skip committing if only setting up the branch
+
     subprocess.run(['git', 'add', file_path], check=True)
 
     diff_result = subprocess.run(['git', 'diff', '--cached', '--quiet'])
@@ -139,7 +142,13 @@ if __name__ == "__main__":
         print("❌ No AVAILABLE AMI found.")
         exit(1)
 
+    # Step 1: Setup branch before modifying the file
+    git_create_branch_and_commit(CLUSTER_YML_PATH, None, BRANCH_NAME)
+
+    # Step 2: Modify the file
     updated = update_yaml_file_preserve_tags(CLUSTER_YML_PATH, ami_id)
+
+    # Step 3: Commit and push if updated
     if updated:
         committed = git_create_branch_and_commit(
             CLUSTER_YML_PATH, ami_id, BRANCH_NAME)
