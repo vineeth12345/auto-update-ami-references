@@ -108,7 +108,7 @@ def commit_and_push_changes(file_path, ami_id, branch_name):
     repo_url = f"https://x-access-token:{encoded_token}@github.com/{GITHUB_REPOSITORY}.git"
 
     # Final aggressive push to prevent stale info issues
-    subprocess.run(['git', 'push', '--force',
+    subprocess.run(['git', 'push', '--force-with-lease',
                    repo_url, branch_name], check=True)
 
     return True
