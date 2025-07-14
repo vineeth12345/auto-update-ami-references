@@ -4,6 +4,7 @@ import os
 import subprocess
 import urllib.parse
 import requests
+import sys
 
 PIPELINE_NAME = os.environ['PIPELINE_NAME']
 CLUSTER_YML_PATH = os.environ['CLUSTER_YML_PATH']
@@ -70,67 +71,106 @@ def update_yaml_file_preserve_tags(path: str, ami_id: str):
     return bool(updated_keys)
 
 
-def setup_branch(branch_name):
-    subprocess.run(['git', 'config', '--global', 'user.name',
-                   'github-actions'], check=True)
-    subprocess.run(['git', 'config', '--global', 'user.email',
-                   'github-actions@github.com'], check=True)
-    subprocess.run(['git', 'fetch'], check=True)
+def run_cmd(cmd_list, check=True):
+    print(f"Running command: {' '.join(cmd_list)}")
+    return subprocess.run(cmd_list, check=check, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
-    result = subprocess.run(
-        ['git', 'ls-remote', '--heads', 'origin', branch_name],
-        stdout=subprocess.PIPE,
-        text=True
-    )
 
-    if result.stdout:
-        print(f"🔁 Branch '{branch_name}' exists remotely. Rebasing...")
-        subprocess.run(['git', 'checkout', branch_name], check=True)
-        subprocess.run(['git', 'pull', '--rebase',
-                       'origin', branch_name], check=True)
+def branches_differ(branch1, branch2):
+    # Fetch latest from origin
+    run_cmd(['git', 'fetch', 'origin'])
+    # Check if branches point to same commit
+    res = run_cmd(['git', 'rev-parse', branch1])
+    rev1 = res.stdout.strip()
+    res = run_cmd(['git', 'rev-parse', branch2])
+    rev2 = res.stdout.strip()
+    if rev1 == rev2:
+        print(f"Branches {branch1} and {branch2} are identical.")
+        return False
+
+    # Alternatively check diff
+    res = run_cmd(['git', 'diff', '--quiet',
+                  f'{branch1}..{branch2}'], check=False)
+    differ = res.returncode != 0
+    if differ:
+        print(f"Branches {branch1} and {branch2} differ.")
     else:
-        print(f"🌱 Creating new branch '{branch_name}'...")
-        subprocess.run(['git', 'checkout', '-b', branch_name], check=True)
+        print(f"Branches {branch1} and {branch2} do not differ.")
+    return differ
+
+
+def checkout_branch(branch_name, create_if_missing=False):
+    # Check if branch exists locally
+    res = run_cmd(['git', 'branch', '--list', branch_name], check=False)
+    if res.stdout.strip():
+        run_cmd(['git', 'checkout', branch_name])
+    else:
+        if create_if_missing:
+            run_cmd(['git', 'checkout', '-b', branch_name])
+        else:
+            # Try checkout from remote branch
+            run_cmd(['git', 'checkout', '-t', f'origin/{branch_name}'])
+
+
+def merge_main_into_branch(branch_name):
+    # Checkout update branch
+    checkout_branch(branch_name)
+
+    # Merge main into it, allow unrelated histories if needed
+    try:
+        run_cmd(['git', 'merge', 'origin/main',
+                '--no-edit', '--allow-unrelated-histories'])
+        print(f"✅ Merged origin/main into {branch_name}")
+        return True
+    except subprocess.CalledProcessError as e:
+        print(f"❌ Merge failed: {e.stderr}")
+        # Abort merge to clean up
+        run_cmd(['git', 'merge', '--abort'])
+        return False
 
 
 def commit_and_push_changes(file_path, ami_id, branch_name):
-    encoded_token = urllib.parse.quote(GITHUB_TOKEN)
-    repo_url = f"https://x-access-token:{encoded_token}@github.com/{GITHUB_REPOSITORY}.git"
+    run_cmd(['git', 'config', '--global', 'user.name', 'github-actions'])
+    run_cmd(['git', 'config', '--global',
+            'user.email', 'github-actions@github.com'])
 
-    # Step 1: Ensure main is up to date
-    subprocess.run(['git', 'checkout', 'main'], check=True)
-    subprocess.run(['git', 'pull', 'origin', 'main'], check=True)
+    # Checkout update branch
+    checkout_branch(branch_name, create_if_missing=True)
 
-    # Step 2: Switch back to update branch and merge main
-    subprocess.run(['git', 'checkout', branch_name], check=True)
-    subprocess.run(['git', 'merge', 'main', '--no-edit'], check=True)
+    # Check if need to pull/rebase from remote branch if exists
+    res = run_cmd(['git', 'ls-remote', '--heads',
+                  'origin', branch_name], check=False)
+    if res.stdout.strip():
+        # Remote branch exists, pull with rebase
+        try:
+            run_cmd(['git', 'pull', '--rebase', 'origin', branch_name])
+        except subprocess.CalledProcessError as e:
+            print(f"❌ Rebase failed: {e.stderr}")
+            run_cmd(['git', 'rebase', '--abort'])
+            sys.exit(1)
 
-    # Step 3: Stage and commit changes
-    subprocess.run(['git', 'add', file_path], check=True)
+    # Add changes
+    run_cmd(['git', 'add', file_path])
 
-    diff_result = subprocess.run(['git', 'diff', '--cached', '--quiet'])
+    # Check if there are staged changes
+    diff_result = run_cmd(['git', 'diff', '--cached', '--quiet'], check=False)
     if diff_result.returncode == 0:
         print("ℹ️ No changes to commit.")
         return False
 
-    subprocess.run(
-        ['git', 'commit', '-m', f'[NOJIRA]: Update AMI ID to {ami_id}'], check=True)
+    # Commit
+    run_cmd(['git', 'commit', '-m', f'[NOJIRA]: Update AMI ID to {ami_id}'])
 
-    # Step 4: Rebase with origin/<branch_name> to avoid stale info
+    # Push with force-with-lease to avoid overwriting others' work
+    encoded_token = urllib.parse.quote(GITHUB_TOKEN)
+    repo_url = f"https://x-access-token:{encoded_token}@github.com/{GITHUB_REPOSITORY}.git"
+
     try:
-        subprocess.run(['git', 'pull', '--rebase',
-                       'origin', branch_name], check=True)
+        run_cmd(['git', 'push', '--force-with-lease', repo_url, branch_name])
+        print(f"✅ Pushed changes to branch {branch_name}")
     except subprocess.CalledProcessError as e:
-        print("❌ Rebase failed. Remote branch may have diverged. Exiting safely.")
-        raise e
-
-    # Step 5: Safe push using --force-with-lease
-    try:
-        subprocess.run(['git', 'push', '--force-with-lease',
-                       repo_url, branch_name], check=True)
-    except subprocess.CalledProcessError:
-        print("⚠️ Push failed due to stale info. Please re-run or resolve manually.")
-        raise
+        print(f"❌ Push failed: {e.stderr}")
+        sys.exit(1)
 
     return True
 
@@ -152,21 +192,40 @@ def create_pull_request(branch_name):
     if response.status_code == 201:
         pr_url = response.json()["html_url"]
         print(f"✅ Pull request created: {pr_url}")
+    elif response.status_code == 422 and 'A pull request already exists' in response.text:
+        print("ℹ️ Pull request already exists.")
     else:
         print(
             f"❌ Failed to create pull request: {response.status_code} {response.text}")
 
 
 if __name__ == "__main__":
+    # Always fetch latest from origin
+    run_cmd(['git', 'fetch', '--all'])
+
+    # Checkout main and pull latest
+    checkout_branch('main')
+    run_cmd(['git', 'pull', 'origin', 'main'])
+
+    # Check if update branch differs from main
+    differ = branches_differ('origin/main', f'origin/{BRANCH_NAME}')
+
+    if differ:
+        print(
+            f"Branches differ. Merging main into {BRANCH_NAME} before updating AMI.")
+        merged = merge_main_into_branch(BRANCH_NAME)
+        if not merged:
+            print("❌ Could not merge main into update branch. Exiting.")
+            sys.exit(1)
+    else:
+        print(f"No differences between main and {BRANCH_NAME}. Proceeding.")
+
     ami_id = get_latest_available_ami(PIPELINE_NAME, REGION)
     if not ami_id:
         print("❌ No AVAILABLE AMI found.")
-        exit(1)
-
-    setup_branch(BRANCH_NAME)
+        sys.exit(1)
 
     updated = update_yaml_file_preserve_tags(CLUSTER_YML_PATH, ami_id)
-
     if updated:
         committed = commit_and_push_changes(
             CLUSTER_YML_PATH, ami_id, BRANCH_NAME)
