@@ -94,6 +94,18 @@ def setup_branch(branch_name):
 
 
 def commit_and_push_changes(file_path, ami_id, branch_name):
+    encoded_token = urllib.parse.quote(GITHUB_TOKEN)
+    repo_url = f"https://x-access-token:{encoded_token}@github.com/{GITHUB_REPOSITORY}.git"
+
+    # Step 1: Ensure main is up to date
+    subprocess.run(['git', 'checkout', 'main'], check=True)
+    subprocess.run(['git', 'pull', 'origin', 'main'], check=True)
+
+    # Step 2: Switch back to update branch and merge main
+    subprocess.run(['git', 'checkout', branch_name], check=True)
+    subprocess.run(['git', 'merge', 'main', '--no-edit'], check=True)
+
+    # Step 3: Stage and commit changes
     subprocess.run(['git', 'add', file_path], check=True)
 
     diff_result = subprocess.run(['git', 'diff', '--cached', '--quiet'])
@@ -104,10 +116,7 @@ def commit_and_push_changes(file_path, ami_id, branch_name):
     subprocess.run(
         ['git', 'commit', '-m', f'[NOJIRA]: Update AMI ID to {ami_id}'], check=True)
 
-    encoded_token = urllib.parse.quote(GITHUB_TOKEN)
-    repo_url = f"https://x-access-token:{encoded_token}@github.com/{GITHUB_REPOSITORY}.git"
-
-    # Final aggressive push to prevent stale info issues
+    # Step 4: Push update branch with --force-with-lease
     subprocess.run(['git', 'push', '--force-with-lease',
                    repo_url, branch_name], check=True)
 
@@ -153,5 +162,3 @@ if __name__ == "__main__":
             create_pull_request(BRANCH_NAME)
     else:
         print("✅ File already up to date.")
-# testing
-
