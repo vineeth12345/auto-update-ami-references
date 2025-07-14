@@ -4,7 +4,6 @@ import os
 import subprocess
 import urllib.parse
 import requests
-import sys
 
 PIPELINE_NAME = os.environ['PIPELINE_NAME']
 CLUSTER_YML_PATH = os.environ['CLUSTER_YML_PATH']
@@ -12,11 +11,6 @@ REGION = os.getenv('AWS_REGION', 'us-east-1')
 BRANCH_NAME = f"update-ami-{PIPELINE_NAME}"
 GITHUB_TOKEN = os.getenv('PAT_TOKEN')
 GITHUB_REPOSITORY = os.getenv('GITHUB_REPOSITORY')
-
-
-def run_cmd(cmd, check=True, capture_output=False, text=True):
-    print(f"Running command: {' '.join(cmd)}")
-    return subprocess.run(cmd, check=check, capture_output=capture_output, text=text)
 
 
 def get_latest_available_ami(pipeline_name, region='us-east-1'):
@@ -77,78 +71,47 @@ def update_yaml_file_preserve_tags(path: str, ami_id: str):
 
 
 def setup_branch(branch_name):
-    run_cmd(['git', 'config', '--global', 'user.name', 'github-actions'])
-    run_cmd(['git', 'config', '--global',
-            'user.email', 'github-actions@github.com'])
-    run_cmd(['git', 'fetch', '--all'])
+    subprocess.run(['git', 'config', '--global', 'user.name',
+                   'github-actions'], check=True)
+    subprocess.run(['git', 'config', '--global', 'user.email',
+                   'github-actions@github.com'], check=True)
+    subprocess.run(['git', 'fetch'], check=True)
 
-    # Check if remote branch exists
-    result = run_cmd(['git', 'ls-remote', '--heads', 'origin',
-                     branch_name], capture_output=True)
-    if result.stdout.strip():
-        print(
-            f"🔁 Branch '{branch_name}' exists remotely. Checking out and rebasing...")
-        run_cmd(['git', 'checkout', branch_name])
-        run_cmd(['git', 'pull', '--rebase', 'origin', branch_name])
+    result = subprocess.run(
+        ['git', 'ls-remote', '--heads', 'origin', branch_name],
+        stdout=subprocess.PIPE,
+        text=True
+    )
+
+    if result.stdout:
+        print(f"🔁 Branch '{branch_name}' exists remotely. Rebasing...")
+        subprocess.run(['git', 'checkout', branch_name], check=True)
+        subprocess.run(['git', 'pull', '--rebase',
+                       'origin', branch_name], check=True)
     else:
-        print(
-            f"🌱 Remote branch '{branch_name}' does not exist. Creating from main...")
-        run_cmd(['git', 'checkout', 'main'])
-        run_cmd(['git', 'pull', 'origin', 'main'])
-        run_cmd(['git', 'checkout', '-b', branch_name])
-        run_cmd(['git', 'push', '-u',
-                f'https://x-access-token:{urllib.parse.quote(GITHUB_TOKEN)}@github.com/{GITHUB_REPOSITORY}.git', branch_name])
-
-
-def branches_differ(branch_a='origin/main', branch_b=None):
-    if branch_b is None:
-        branch_b = BRANCH_NAME
-    run_cmd(['git', 'fetch', 'origin'])
-    rev_a = run_cmd(['git', 'rev-parse', branch_a],
-                    capture_output=True).stdout.strip()
-    rev_b = run_cmd(['git', 'rev-parse', branch_b],
-                    capture_output=True).stdout.strip()
-    print(f"Branches {branch_a} and {branch_b} commits: {rev_a} vs {rev_b}")
-    return rev_a != rev_b
-
-
-def merge_main_into_branch(branch_name):
-    print(f"🔀 Merging 'main' into '{branch_name}'...")
-    run_cmd(['git', 'checkout', branch_name])
-    try:
-        run_cmd(['git', 'merge', 'main', '--no-edit'])
-        print("✅ Merge successful.")
-        return True
-    except subprocess.CalledProcessError as e:
-        print(f"❌ Merge failed: {e}. Please resolve conflicts manually.")
-        sys.exit(1)
+        print(f"🌱 Creating new branch '{branch_name}'...")
+        subprocess.run(['git', 'checkout', '-b', branch_name], check=True)
 
 
 def commit_and_push_changes(file_path, ami_id, branch_name):
-    run_cmd(['git', 'add', file_path])
+    subprocess.run(['git', 'add', file_path], check=True)
 
     diff_result = subprocess.run(['git', 'diff', '--cached', '--quiet'])
     if diff_result.returncode == 0:
         print("ℹ️ No changes to commit.")
         return False
 
-    run_cmd(['git', 'commit', '-m', f'[NOJIRA]: Update AMI ID to {ami_id}'])
+    subprocess.run(
+        ['git', 'commit', '-m', f'[NOJIRA]: Update AMI ID to {ami_id}'], check=True)
 
     encoded_token = urllib.parse.quote(GITHUB_TOKEN)
     repo_url = f"https://x-access-token:{encoded_token}@github.com/{GITHUB_REPOSITORY}.git"
 
-    # Push with --force-with-lease to avoid stale refs
-    try:
-        run_cmd(['git', 'push', '--force-with-lease', repo_url, branch_name])
-        print("✅ Push successful.")
-        return True
-    except subprocess.CalledProcessError as e:
-        print(f"❌ Push failed: {e}")
-        # Attempt to pull rebase and push again once
-        run_cmd(['git', 'pull', '--rebase', 'origin', branch_name])
-        run_cmd(['git', 'push', '--force-with-lease', repo_url, branch_name])
-        print("✅ Push successful after rebase.")
-        return True
+    # Final aggressive push to prevent stale info issues
+    subprocess.run(['git', 'push', '--force-with-lease',
+                   repo_url, branch_name], check=True)
+
+    return True
 
 
 def create_pull_request(branch_name):
@@ -168,8 +131,6 @@ def create_pull_request(branch_name):
     if response.status_code == 201:
         pr_url = response.json()["html_url"]
         print(f"✅ Pull request created: {pr_url}")
-    elif response.status_code == 422 and "A pull request already exists" in response.text:
-        print("ℹ️ Pull request already exists.")
     else:
         print(
             f"❌ Failed to create pull request: {response.status_code} {response.text}")
@@ -179,15 +140,9 @@ if __name__ == "__main__":
     ami_id = get_latest_available_ami(PIPELINE_NAME, REGION)
     if not ami_id:
         print("❌ No AVAILABLE AMI found.")
-        sys.exit(1)
+        exit(1)
 
     setup_branch(BRANCH_NAME)
-
-    # Check if main and update branch differ
-    if branches_differ('origin/main', f'origin/{BRANCH_NAME}'):
-        merge_main_into_branch(BRANCH_NAME)
-    else:
-        print("Branches are identical or update branch is behind. Proceeding with AMI update anyway.")
 
     updated = update_yaml_file_preserve_tags(CLUSTER_YML_PATH, ami_id)
 
@@ -198,3 +153,4 @@ if __name__ == "__main__":
             create_pull_request(BRANCH_NAME)
     else:
         print("✅ File already up to date.")
+# testingggS
