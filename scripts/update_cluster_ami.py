@@ -116,9 +116,21 @@ def commit_and_push_changes(file_path, ami_id, branch_name):
     subprocess.run(
         ['git', 'commit', '-m', f'[NOJIRA]: Update AMI ID to {ami_id}'], check=True)
 
-    # Step 4: Push update branch with --force-with-lease
-    subprocess.run(['git', 'push', '--force-with-lease',
-                   repo_url, branch_name], check=True)
+    # Step 4: Rebase with origin/<branch_name> to avoid stale info
+    try:
+        subprocess.run(['git', 'pull', '--rebase',
+                       'origin', branch_name], check=True)
+    except subprocess.CalledProcessError as e:
+        print("❌ Rebase failed. Remote branch may have diverged. Exiting safely.")
+        raise e
+
+    # Step 5: Safe push using --force-with-lease
+    try:
+        subprocess.run(['git', 'push', '--force-with-lease',
+                       repo_url, branch_name], check=True)
+    except subprocess.CalledProcessError:
+        print("⚠️ Push failed due to stale info. Please re-run or resolve manually.")
+        raise
 
     return True
 
