@@ -1,203 +1,194 @@
 import os
-import sys
 import subprocess
-import urllib.parse
+import sys
+from ruamel.yaml import YAML
 import requests
-import yaml
 
-# Read env vars set by GitHub Actions
+# Constants - update these as needed or pass via env
+PIPELINE_NAME = os.getenv("PIPELINE_NAME", "amitest")
+CLUSTER_YML_PATH = os.getenv("CLUSTER_YML_PATH", "Definitions/clusters.yml")
+# Use PAT_TOKEN from GitHub Actions secrets
 GITHUB_TOKEN = os.getenv("PAT_TOKEN")
-GITHUB_REPOSITORY = os.getenv("GITHUB_REPOSITORY")
-PIPELINE_NAME = os.getenv("PIPELINE_NAME")
-CLUSTER_YML_PATH = os.getenv("CLUSTER_YML_PATH")
-
-if not all([GITHUB_TOKEN, GITHUB_REPOSITORY, PIPELINE_NAME, CLUSTER_YML_PATH]):
-    print("❌ One or more required environment variables are missing.")
-    sys.exit(1)
-
+GITHUB_REPOSITORY = os.getenv("GITHUB_REPOSITORY")  # e.g., 'user/repo'
+REPO_URL = f"https://{GITHUB_TOKEN}@github.com/{GITHUB_REPOSITORY}.git"
 BRANCH_NAME = f"update-ami-{PIPELINE_NAME}"
 
+yaml = YAML()
+yaml.preserve_quotes = True
 
-def run_cmd(cmd, capture_output=False):
+
+def run_cmd(cmd, check=True):
     print(f"Running command: {' '.join(cmd)}")
-    if capture_output:
-        result = subprocess.run(
-            cmd, check=True, text=True, stdout=subprocess.PIPE)
-        return result.stdout.strip()
-    else:
-        subprocess.run(cmd, check=True)
+    result = subprocess.run(cmd, text=True, capture_output=True)
+    print(result.stdout)
+    if result.stderr.strip():
+        print(result.stderr, file=sys.stderr)
+    if check and result.returncode != 0:
+        raise subprocess.CalledProcessError(result.returncode, cmd)
+    return result
 
 
-def remote_branch_exists(branch_name):
-    output = run_cmd(
-        ["git", "ls-remote", "--heads", "origin", branch_name], capture_output=True
-    )
-    return bool(output)
-
-
-def fetch_all():
-    run_cmd(["git", "fetch", "--all"])
-
-
-def checkout_main_branch():
-    branches = run_cmd(["git", "branch", "--list", "main"],
-                       capture_output=True)
-    if "main" not in branches:
-        run_cmd(["git", "checkout", "-t", "origin/main"])
-    else:
-        run_cmd(["git", "checkout", "main"])
-    run_cmd(["git", "pull", "origin", "main"])
-
-
-def create_update_branch_from_main(branch_name):
-    print(
-        f"Remote branch '{branch_name}' does not exist. Creating from 'main'...")
-    checkout_main_branch()
-    run_cmd(["git", "checkout", "-b", branch_name])
-    repo_url = f"https://x-access-token:{urllib.parse.quote(GITHUB_TOKEN)}@github.com/{GITHUB_REPOSITORY}.git"
-    run_cmd(["git", "push", "-u", repo_url, branch_name])
+def remote_branch_exists(branch):
+    result = run_cmd(['git', 'ls-remote', '--heads',
+                     'origin', branch], check=False)
+    return bool(result.stdout.strip())
 
 
 def branches_differ(branch1, branch2):
-    fetch_all()
-    try:
-        commit1 = run_cmd(
-            ["git", "rev-parse", f"origin/{branch1}"], capture_output=True)
-    except subprocess.CalledProcessError:
-        print(f"Branch origin/{branch1} not found.")
-        sys.exit(1)
-    try:
-        commit2 = run_cmd(
-            ["git", "rev-parse", f"origin/{branch2}"], capture_output=True)
-    except subprocess.CalledProcessError:
-        print(f"Branch origin/{branch2} not found.")
-        return True
-    if commit1 != commit2:
-        print(f"Branches origin/{branch1} and origin/{branch2} differ.")
-        return True
-    print(f"Branches origin/{branch1} and origin/{branch2} are identical.")
-    return False
+    # Get commit hashes of the remote branches
+    h1 = run_cmd(['git', 'rev-parse', f'origin/{branch1}']).stdout.strip()
+    h2 = run_cmd(['git', 'rev-parse', f'origin/{branch2}']).stdout.strip()
+    print(
+        f"Branches origin/{branch1} and origin/{branch2} commits: {h1} vs {h2}")
+    return h1 != h2
+
+
+def create_update_branch():
+    print(
+        f"Remote branch '{BRANCH_NAME}' does not exist. Creating from 'main'...")
+    run_cmd(['git', 'checkout', 'main'])
+    run_cmd(['git', 'pull', 'origin', 'main'])
+    run_cmd(['git', 'checkout', '-b', BRANCH_NAME])
+    run_cmd(['git', 'push', '-u', REPO_URL, BRANCH_NAME])
+
+
+def merge_main_into_update_branch():
+    print("Merging 'main' into update branch if needed...")
+    run_cmd(['git', 'fetch', 'origin'])
+    # Checkout the update branch
+    run_cmd(['git', 'checkout', BRANCH_NAME])
+    # Pull latest update branch changes
+    run_cmd(['git', 'pull', '--ff-only', 'origin', BRANCH_NAME])
+    # Check if merge needed
+    if branches_differ('main', BRANCH_NAME):
+        try:
+            run_cmd(['git', 'merge', 'main', '--no-edit'])
+        except subprocess.CalledProcessError:
+            print("Merge conflict or error. Aborting.")
+            run_cmd(['git', 'merge', '--abort'])
+            sys.exit(1)
+    else:
+        print("No merge needed; branches are up to date.")
 
 
 def update_ami_in_yaml(file_path, ami_id):
     with open(file_path) as f:
-        data = yaml.safe_load(f)
+        data = yaml.load(f)
 
     updated = False
     keys_updated = []
-    if "PROD_AMI" in data and data["PROD_AMI"] != ami_id:
-        data["PROD_AMI"] = ami_id
-        keys_updated.append("PROD_AMI")
-        updated = True
-    if "DEV_AMI" in data and data["DEV_AMI"] != ami_id:
-        data["DEV_AMI"] = ami_id
-        keys_updated.append("DEV_AMI")
-        updated = True
+    for key in ("PROD_AMI", "DEV_AMI"):
+        if key in data and data[key] != ami_id:
+            data[key] = ami_id
+            keys_updated.append(key)
+            updated = True
 
     if updated:
         with open(file_path, "w") as f:
             yaml.dump(data, f)
         print(f"✅ Updated {file_path} with AMI: {ami_id}")
-        print(f"Keys updated:\n  - " + "\n  - ".join(keys_updated))
+        print("Keys updated:\n  - " + "\n  - ".join(keys_updated))
     else:
         print(f"ℹ️ No changes needed in {file_path} for AMI {ami_id}")
-
     return updated
 
 
-def commit_and_push_changes(file_path, ami_id, branch_name):
-    run_cmd(["git", "config", "--global", "user.name", "github-actions"])
-    run_cmd(["git", "config", "--global",
-            "user.email", "github-actions@github.com"])
+def commit_and_push_changes(ami_id):
+    run_cmd(['git', 'config', '--global', 'user.name', 'github-actions'])
+    run_cmd(['git', 'config', '--global',
+            'user.email', 'github-actions@github.com'])
+    run_cmd(['git', 'add', CLUSTER_YML_PATH])
 
-    repo_url = f"https://x-access-token:{urllib.parse.quote(GITHUB_TOKEN)}@github.com/{GITHUB_REPOSITORY}.git"
-
-    run_cmd(["git", "checkout", branch_name])
-
-    try:
-        run_cmd(["git", "pull", "--rebase", "origin", branch_name])
-    except subprocess.CalledProcessError as e:
-        print(f"❌ Rebase failed: {e}")
-        sys.exit(1)
-
-    run_cmd(["git", "add", file_path])
-
-    diff_result = subprocess.run(["git", "diff", "--cached", "--quiet"])
+    # Check if there are any changes to commit
+    diff_result = run_cmd(['git', 'diff', '--cached', '--quiet'], check=False)
     if diff_result.returncode == 0:
-        print("ℹ️ No changes to commit.")
+        print("No changes to commit.")
         return False
 
-    run_cmd(["git", "commit", "-m", f"[NOJIRA]: Update AMI ID to {ami_id}"])
+    commit_msg = f"[NOJIRA]: Update AMI ID to {ami_id}"
+    run_cmd(['git', 'commit', '-m', commit_msg])
 
+    # Try pushing changes with --force-with-lease
     try:
-        run_cmd(["git", "push", "--force-with-lease", repo_url, branch_name])
+        run_cmd(['git', 'push', '--force-with-lease', REPO_URL, BRANCH_NAME])
+        print("✅ Push successful.")
     except subprocess.CalledProcessError:
-        print("❌ Push failed after rebase. Manual intervention required.")
-        sys.exit(1)
+        print("❌ Push failed. Trying pull --rebase and push again...")
+        run_cmd(['git', 'pull', '--rebase', 'origin', BRANCH_NAME])
+        run_cmd(['git', 'push', '--force-with-lease', REPO_URL, BRANCH_NAME])
 
     return True
 
 
 def create_pull_request(branch_name):
+    print(f"Creating or updating pull request for branch '{branch_name}'")
     url = f"https://api.github.com/repos/{GITHUB_REPOSITORY}/pulls"
     headers = {
         "Authorization": f"token {GITHUB_TOKEN}",
-        "Accept": "application/vnd.github+json",
+        "Accept": "application/vnd.github+json"
     }
-    params = {"head": branch_name, "base": "main", "state": "open"}
-    response = requests.get(url, headers=headers, params=params)
-    response.raise_for_status()
-    prs = response.json()
-    if prs:
-        print(f"Pull request already exists: {prs[0]['html_url']}")
-        return
-
     data = {
-        "title": f"Update AMI ID for {PIPELINE_NAME}",
+        "title": f"Update AMI IDs for {PIPELINE_NAME}",
         "head": branch_name,
         "base": "main",
-        "body": f"This PR updates the AMI ID in `{CLUSTER_YML_PATH}` for the `{PIPELINE_NAME}` pipeline.",
+        "body": f"This PR updates the AMI ID in `{CLUSTER_YML_PATH}` for the `{PIPELINE_NAME}` pipeline."
     }
+
+    response = requests.get(
+        url + f"?head={GITHUB_REPOSITORY.split('/')[0]}:{branch_name}", headers=headers)
+    if response.status_code == 200 and response.json():
+        pr_number = response.json()[0]['number']
+        print(f"Pull request already exists: #{pr_number}")
+        return pr_number
+    elif response.status_code != 200:
+        print(f"Failed to query PRs: {response.text}")
+        return None
+
     response = requests.post(url, headers=headers, json=data)
-    response.raise_for_status()
-    pr = response.json()
-    print(f"Pull request created: {pr['html_url']}")
+    if response.status_code == 201:
+        pr_number = response.json()['number']
+        print(f"Created pull request #{pr_number}")
+        return pr_number
+    else:
+        print(f"Failed to create PR: {response.text}")
+        return None
 
 
 def main():
-    # TODO: Replace with real AMI fetch logic or env var
-    ami_id = "ami-0a174b9853736c3c8"
+    # Fetch all refs
+    run_cmd(['git', 'fetch', '--all'])
 
-    fetch_all()
-
+    # Check if remote update branch exists; if not, create it from main
     if not remote_branch_exists(BRANCH_NAME):
-        create_update_branch_from_main(BRANCH_NAME)
+        create_update_branch()
 
-    run_cmd(["git", "checkout", BRANCH_NAME])
-    run_cmd(["git", "pull", "--ff-only", "origin", BRANCH_NAME])
+    # Checkout update branch and pull latest changes
+    run_cmd(['git', 'checkout', BRANCH_NAME])
+    run_cmd(['git', 'pull', '--ff-only', 'origin', BRANCH_NAME])
 
-    if branches_differ("main", BRANCH_NAME):
-        print(f"Merging 'main' into '{BRANCH_NAME}' to sync changes...")
-        try:
-            run_cmd(["git", "merge", "origin/main", "--no-edit"])
-            repo_url = f"https://x-access-token:{urllib.parse.quote(GITHUB_TOKEN)}@github.com/{GITHUB_REPOSITORY}.git"
-            run_cmd(["git", "push", "--force-with-lease", repo_url, BRANCH_NAME])
-        except subprocess.CalledProcessError as e:
-            print(f"❌ Merge or push failed: {e}")
-            sys.exit(1)
+    # Fetch again and check if branches differ
+    run_cmd(['git', 'fetch', 'origin'])
+    if branches_differ('main', BRANCH_NAME):
+        merge_main_into_update_branch()
     else:
-        print("Branches are identical or update branch is behind. Proceeding with AMI update anyway.")
+        print("Branches origin/main and origin/update branch are identical or update branch is behind. Proceeding with AMI update anyway.")
 
-    updated = update_ami_in_yaml(CLUSTER_YML_PATH, ami_id)
+    # Here you would get your latest AMI ID, but as an example:
+    latest_ami = os.getenv("LATEST_AMI_ID")
+    if not latest_ami:
+        print("ERROR: Latest AMI ID not provided via LATEST_AMI_ID environment variable")
+        sys.exit(1)
+
+    updated = update_ami_in_yaml(CLUSTER_YML_PATH, latest_ami)
+
     if not updated:
-        print("No update needed; exiting.")
+        print("No update needed, exiting.")
         return
 
-    committed = commit_and_push_changes(CLUSTER_YML_PATH, ami_id, BRANCH_NAME)
+    committed = commit_and_push_changes(latest_ami)
+
     if committed:
         create_pull_request(BRANCH_NAME)
-    else:
-        print("No new commit was made; skipping PR creation.")
 
 
 if __name__ == "__main__":
