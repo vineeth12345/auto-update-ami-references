@@ -20,11 +20,22 @@ jobs:
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
 
-      - name: Push to Gitea (via ngrok)
+      - name: Push to Gitea (via ngrok, skip PR refs)
         env:
           GITEA_USERNAME_ENC: vineeth25d60%40gmail.com
           GITEA_PASSWORD: 102a0eb0655ee553e1e939670104dee2ff256135
           GITEA_URL: 9e233262196c.ngrok-free.app/vineeth/auto-update-ami-references.git
         run: |
           git remote add gitea "https://${GITEA_USERNAME_ENC}:${GITEA_PASSWORD}@${GITEA_URL}"
-          git push --mirror gitea
+
+          echo "Pushing all branches..."
+          for ref in $(git for-each-ref --format='%(refname)' refs/heads); do
+            echo "→ Pushing $ref"
+            git push gitea "$ref"
+          done
+
+          echo "Pushing all tags..."
+          for ref in $(git for-each-ref --format='%(refname)' refs/tags); do
+            echo "→ Pushing $ref"
+            git push gitea "$ref"
+          done
