@@ -1,0 +1,30 @@
+name: Mirror to Gitea via ngrok
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["*"] # triggers on all branches
+
+jobs:
+  sync-to-gitea:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout the repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Git config
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+
+      - name: Push to Gitea (via ngrok)
+        env:
+          GITEA_URL: https://9e233262196c.ngrok-free.app/vineeth/auto-update-ami-references.git
+          GITEA_USERNAME: vineeth
+          GITEA_PASSWORD: Vineeth123
+        run: |
+          git remote add gitea $GITEA_URL
+          git push --mirror gitea
