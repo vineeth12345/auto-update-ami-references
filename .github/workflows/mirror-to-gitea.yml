@@ -22,7 +22,7 @@ jobs:
 
       - name: Push to Gitea (via ngrok)
         env:
-          GITEA_URL: https://9e233262196c.ngrok-free.app/vineeth/auto-update-ami-references.git
+          GITEA_URL: http://localhost:3000/vineeth/auto-update-ami-references.git
           GITEA_USERNAME: vineeth25d60@gmail.com
           GITEA_PASSWORD: 102a0eb0655ee553e1e939670104dee2ff256135
         run: |
